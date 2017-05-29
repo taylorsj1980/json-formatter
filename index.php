@@ -1,4 +1,6 @@
 <?php
+    include 'json-lib.php';
+
     $jsonUnformatted = '';
     $jsonFormatted = '';
     $message = '';
@@ -9,28 +11,29 @@
             //  Determine the format direction - assume that we are planning to format the JSON value
             $formatDirection = $_POST['format_direction'];
 
-            if ($formatDirection == 'format') {
-                //  Take the unformatted JSON code and format it
-                $jsonUnformatted = trim($_POST['json_unformatted']);
-                $jsonArr = json_decode($jsonUnformatted, true);
-
-                if (is_array($jsonArr)) {
-                    $jsonFormatted = getJsonLine($jsonArr);
-                } else {
-                    throw new \Exception($message = 'Unformatted JSON input is not valid JSON');
-                }
-            } elseif ($formatDirection == 'unformat') {
-                //  Take the formatted JSON code and unformat it
-                $jsonFormatted = trim($_POST['json_formatted']);
-                $jsonArr = json_decode($jsonFormatted, true);
-
-                if (is_array($jsonArr)) {
-                    $jsonUnformatted = getJsonLine($jsonArr, -1);
-                } else {
-                    throw new \Exception($message = 'Formatted JSON input is not valid JSON');
-                }
-            } else {
+            if (!in_array($formatDirection, ['format', 'unformat'])) {
                 throw new \Exception('Unexpected format direction: must be format or unformat');
+            }
+
+            //  Check that the string is valid JSON - by default assume we are formatting rather than unformatting
+            $formatting = true;
+            $jsonStr = $jsonUnformatted = trim($_POST['json_unformatted']);
+
+            if ($formatDirection == 'unformat') {
+                $formatting = false;
+                $jsonStr = $jsonFormatted = trim($_POST['json_formatted']);
+            }
+
+            $jsonArr = json_decode($jsonStr, true);
+
+            if (!is_array($jsonArr)) {
+                throw new \Exception(($formatting ? 'Unformatted' : 'Formatted') . ' JSON input is not valid JSON');
+            }
+
+            if ($formatting) {
+                $jsonFormatted = getFormattedJson($jsonArr);
+            } else {
+                $jsonUnformatted = getUnformattedJson($jsonArr);
             }
         } else {
             $jsonUnformatted = '{"_id" : "xxxx-yyyy-zzzz", "createdAt" : "2017-05-16T15:38:03.440Z", "updatedAt" : "2017-05-16T15:39:09.996Z", "name" : {"title" : "Mr", "first" : "Steven", "last" : "Taylor"}, "address" : {"address1" : "1 Street Road", "address2" : "Some town", "address3" : null, "postcode" : "AB1 2CD"},"dob" : {"date" : "1980-06-14T00:00:00.000Z"}, "email" : {"address" : "taylorsj1980@email.com"},"objects": [{"name": "object1", "desc": "About object 1"},{"name": "object2", "desc": "About object 2"}]}';
@@ -38,50 +41,6 @@
     } catch (\Exception $ex) {
         $message = $ex->getMessage();
         $messageType = 'danger';
-    }
-
-    function getJsonLine($valueIn, $indentCount = 1)
-    {
-        $valueOut = '';
-
-        //  Set up the formatting chars - if the indent count is negative then no formatting should be used
-        $unformatting = ($indentCount < 0);
-        $indentString = '    ';
-        $newLineChar = ($unformatting ? '' : "\n");
-
-        if (is_array($valueIn)) {
-            $firstIteration = true;
-
-            foreach ($valueIn as $key => $value) {
-                $valueOutWithQuotes = false;
-
-                if (!$firstIteration) {
-                    $valueOut .= ',' . $newLineChar;
-                }
-
-                if (is_array($value)) {
-                    $newIndentCount = ($unformatting ? -1 : $indentCount + 1);
-                    $value = getJsonLine($value, $newIndentCount);
-                } elseif (is_null($value)) {
-                    $value = 'null';
-                } elseif ($value === true) {
-                    $value = 'true';
-                } elseif ($value === false) {
-                    $value = 'false';
-                } elseif (!is_numeric($value)) {
-                    //  This is a string value so use quotes
-                    $valueOutWithQuotes = true;
-                }
-
-                $indent = ($unformatting ? '' : str_repeat($indentString, $indentCount));
-                $valueOut .= $indent . sprintf(($valueOutWithQuotes ? '"%s": "%s"' : '"%s": %s'), $key, $value);
-
-                $firstIteration = false;
-            }
-        }
-
-        $nextLineIndent = ($unformatting ? '' : str_repeat($indentString, $indentCount - 1));
-        return '{' . $newLineChar . $valueOut . $newLineChar . $nextLineIndent . '}';
     }
 ?>
 <!DOCTYPE html>
