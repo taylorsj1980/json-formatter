@@ -49,27 +49,32 @@
         $indentString = '    ';
         $newLineChar = ($unformatting ? '' : "\n");
 
-        //  If the indent char is negative, meaning there should be no formatting, change the formatting chars now
-
-
         if (is_array($valueIn)) {
             $firstIteration = true;
 
             foreach ($valueIn as $key => $value) {
-                $valueOutFormat = '"%s": "%s"';
+                $valueOutWithQuotes = false;
 
                 if (!$firstIteration) {
                     $valueOut .= ',' . $newLineChar;
                 }
 
                 if (is_array($value)) {
-                    $valueOutFormat = '"%s": %s';
                     $newIndentCount = ($unformatting ? -1 : $indentCount + 1);
                     $value = getJsonLine($value, $newIndentCount);
+                } elseif (is_null($value)) {
+                    $value = 'null';
+                } elseif ($value === true) {
+                    $value = 'true';
+                } elseif ($value === false) {
+                    $value = 'false';
+                } elseif (!is_numeric($value)) {
+                    //  This is a string value so use quotes
+                    $valueOutWithQuotes = true;
                 }
 
                 $indent = ($unformatting ? '' : str_repeat($indentString, $indentCount));
-                $valueOut .= $indent . sprintf($valueOutFormat, $key, $value);
+                $valueOut .= $indent . sprintf(($valueOutWithQuotes ? '"%s": "%s"' : '"%s": %s'), $key, $value);
 
                 $firstIteration = false;
             }
