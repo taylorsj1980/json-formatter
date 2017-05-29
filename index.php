@@ -1,31 +1,39 @@
 <?php
-    $jsonRaw = '';
+    $jsonUnformatted = '';
     $jsonFormatted = '';
     $message = '';
     $messageType = '';  //  success/info/warning/danger
 
     try {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $jsonRaw = trim($_POST['json_raw']);
-            $jsonFormatted = trim($_POST['json_formatted']);
+            //  Determine the format direction - assume that we are planning to format the JSON value
+            $formatDirection = $_POST['format_direction'];
 
-            if (!empty($jsonRaw) && empty($jsonFormatted)) {
-                //  Take the raw JSON code and format it
-                $jsonArr = json_decode($jsonRaw, true);
+            if ($formatDirection == 'format') {
+                //  Take the unformatted JSON code and format it
+                $jsonUnformatted = trim($_POST['json_unformatted']);
+                $jsonArr = json_decode($jsonUnformatted, true);
 
                 if (is_array($jsonArr)) {
                     $jsonFormatted = getJsonLine($jsonArr);
                 } else {
-                    throw new \Exception($message = 'Raw input is not valid JSON');
+                    throw new \Exception($message = 'Unformatted JSON input is not valid JSON');
                 }
-            } elseif (empty($jsonRaw) && !empty($jsonFormatted)) {
-                //  TODO - To be completed...
+            } elseif ($formatDirection == 'unformat') {
+                //  Take the formatted JSON code and unformat it
+                $jsonFormatted = trim($_POST['json_formatted']);
+                $jsonArr = json_decode($jsonFormatted, true);
 
+                if (is_array($jsonArr)) {
+                    $jsonUnformatted = getJsonLine($jsonArr, -1);
+                } else {
+                    throw new \Exception($message = 'Formatted JSON input is not valid JSON');
+                }
             } else {
-                throw new \Exception('Either raw or formatted input must be empty');
+                throw new \Exception('Unexpected format direction: must be format or unformat');
             }
         } else {
-            $jsonRaw = '{"_id" : "xxxx-yyyy-zzzz", "createdAt" : "2017-05-16T15:38:03.440Z", "updatedAt" : "2017-05-16T15:39:09.996Z", "name" : {"title" : "Mr", "first" : "Steven", "last" : "Taylor"}, "address" : {"address1" : "1 Street Road", "address2" : "Some town", "address3" : null, "postcode" : "AB1 2CD"},"dob" : {"date" : "1980-06-14T00:00:00.000Z"}, "email" : {"address" : "taylorsj1980@email.com"},"objects": [{"name": "object1", "desc": "About object 1"},{"name": "object2", "desc": "About object 2"}]}';
+            $jsonUnformatted = '{"_id" : "xxxx-yyyy-zzzz", "createdAt" : "2017-05-16T15:38:03.440Z", "updatedAt" : "2017-05-16T15:39:09.996Z", "name" : {"title" : "Mr", "first" : "Steven", "last" : "Taylor"}, "address" : {"address1" : "1 Street Road", "address2" : "Some town", "address3" : null, "postcode" : "AB1 2CD"},"dob" : {"date" : "1980-06-14T00:00:00.000Z"}, "email" : {"address" : "taylorsj1980@email.com"},"objects": [{"name": "object1", "desc": "About object 1"},{"name": "object2", "desc": "About object 2"}]}';
         }
     } catch (\Exception $ex) {
         $message = $ex->getMessage();
@@ -35,7 +43,14 @@
     function getJsonLine($valueIn, $indentCount = 1)
     {
         $valueOut = '';
+
+        //  Set up the formatting chars - if the indent count is negative then no formatting should be used
+        $unformatting = ($indentCount < 0);
         $indentString = '    ';
+        $newLineChar = ($unformatting ? '' : "\n");
+
+        //  If the indent char is negative, meaning there should be no formatting, change the formatting chars now
+
 
         if (is_array($valueIn)) {
             $firstIteration = true;
@@ -44,21 +59,24 @@
                 $valueOutFormat = '"%s": "%s"';
 
                 if (!$firstIteration) {
-                    $valueOut .= ",\n";
+                    $valueOut .= ',' . $newLineChar;
                 }
 
                 if (is_array($value)) {
                     $valueOutFormat = '"%s": %s';
-                    $value = getJsonLine($value, $indentCount + 1);
+                    $newIndentCount = ($unformatting ? -1 : $indentCount + 1);
+                    $value = getJsonLine($value, $newIndentCount);
                 }
 
-                $valueOut .= str_repeat($indentString, $indentCount) . sprintf($valueOutFormat, $key, $value);
+                $indent = ($unformatting ? '' : str_repeat($indentString, $indentCount));
+                $valueOut .= $indent . sprintf($valueOutFormat, $key, $value);
 
                 $firstIteration = false;
             }
         }
 
-        return "{\n" . $valueOut . "\n" . str_repeat($indentString, $indentCount - 1) . "}";
+        $nextLineIndent = ($unformatting ? '' : str_repeat($indentString, $indentCount - 1));
+        return '{' . $newLineChar . $valueOut . $newLineChar . $nextLineIndent . '}';
     }
 ?>
 <!DOCTYPE html>
@@ -79,6 +97,21 @@
         <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
         <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
         <![endif]-->
+
+        <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+        <!-- Include all compiled plugins (below), or include individual files as needed -->
+        <script src="js/bootstrap.min.js"></script>
+
+        <script type="text/javascript">
+            $(document).ready(function() {
+                $('.submit-button').click(function (e) {
+                    //  Put the format direction value into the hidden input and submit
+                    $('[name="format_direction"]').val($(this).data('format-direction'));
+                    $(this).closest('form').submit();
+                });
+            });
+        </script>
     </head>
     <body>
         <div class="container">
@@ -95,27 +128,26 @@
                 </div>
             <?php } ?>
             <form method="POST">
+                <input type="hidden" name="format_direction" />
                 <div class="row">
                     <div class="col-md-6">
-                        Raw
-                        <textarea class="form-control" rows="20" name="json_raw"><?= $jsonRaw ?></textarea>
+                        Unformatted
+                        <textarea class="form-control" rows="20" name="json_unformatted"><?= $jsonUnformatted ?></textarea>
                     </div>
                     <div class="col-md-6">
                         Formatted
                         <textarea class="form-control" rows="20" name="json_formatted"><?= $jsonFormatted ?></textarea>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <input class="btn btn-default" type="submit" value="Submit">
+                <div class="row" style="margin-top: 10px">
+                    <div class="col-md-6">
+                        <input class="btn btn-default submit-button" type="button" data-format-direction="format" value="Format JSON">
+                    </div>
+                    <div class="col-md-6">
+                        <input class="btn btn-default submit-button" type="button" data-format-direction="unformat" value="Unformat JSON">
                     </div>
                 </div>
             </form>
         </div>
-
-        <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-        <!-- Include all compiled plugins (below), or include individual files as needed -->
-        <script src="js/bootstrap.min.js"></script>
     </body>
 </html>
