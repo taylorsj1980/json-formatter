@@ -1,44 +1,53 @@
 <?php
-    function getJsonLine($jsonIn, $indentCount = 1)
+    function getJsonLine(array $jsonIn, $indentCount = 1)
     {
         $jsonOut = '';
 
         $indentString = '    ';
         $newLineChar = "\n";
+        $openJson = '{';
+        $closeJson = '}';
 
-        if (is_array($jsonIn)) {
-            $firstIteration = true;
+        $firstIteration = true;
 
-            foreach ($jsonIn as $key => $value) {
-                $valueOutWithQuotes = false;
+        foreach ($jsonIn as $key => $value) {
+            $valueOutWithQuotes = false;
 
-                if (!$firstIteration) {
-                    $jsonOut .= ',' . $newLineChar;
-                }
-
-                if (is_array($value)) {
-                    $newIndentCount = $indentCount + 1;
-                    $value = getJsonLine($value, $newIndentCount);
-                } elseif (is_null($value)) {
-                    $value = 'null';
-                } elseif ($value === true) {
-                    $value = 'true';
-                } elseif ($value === false) {
-                    $value = 'false';
-                } elseif (!is_numeric($value)) {
-                    //  This is a string value so use quotes
-                    $valueOutWithQuotes = true;
-                }
-
-                $indent = str_repeat($indentString, $indentCount);
-                $jsonOut .= $indent . sprintf(($valueOutWithQuotes ? '"%s": "%s"' : '"%s": %s'), $key, $value);
-
-                $firstIteration = false;
+            if (!$firstIteration) {
+                $jsonOut .= ',' . $newLineChar;
             }
+
+            if (is_array($value)) {
+                $newIndentCount = $indentCount + 1;
+                $value = getJsonLine($value, $newIndentCount);
+            } elseif (is_null($value)) {
+                $value = 'null';
+            } elseif ($value === true) {
+                $value = 'true';
+            } elseif ($value === false) {
+                $value = 'false';
+            } elseif (!is_numeric($value)) {
+                //  This is a string value so use quotes
+                $valueOutWithQuotes = true;
+            }
+
+            //  Append a suitable indent
+            $jsonOut .= str_repeat($indentString, $indentCount);
+
+            //  Construct the JSON for this key value pair
+            if (is_numeric($key)) {
+                $jsonOut .= $value;
+                $openJson = '[';
+                $closeJson = ']';
+            } else {
+                $jsonOut .= sprintf(($valueOutWithQuotes ? '"%s": "%s"' : '"%s": %s'), $key, $value);
+            }
+
+            $firstIteration = false;
         }
 
         $nextLineIndent = str_repeat($indentString, $indentCount - 1);
-        return '{' . $newLineChar . $jsonOut . $newLineChar . $nextLineIndent . '}';
+        return $openJson . $newLineChar . $jsonOut . $newLineChar . $nextLineIndent . $closeJson;
     }
 
     function getFormattedJson($jsonIn)
